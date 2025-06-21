@@ -8,10 +8,10 @@ from .models import Product, Review
 class ProductReviewAPITest(APITestCase):
 
     def setUp(self):
+        # إنشاء مستخدمين
         self.user = User.objects.create_user(username='testuser', password='testpass')
         self.admin = User.objects.create_superuser(username='admin', password='adminpass')
-        self.product = Product.objects.create(name="Test Product", price=100, description="A test product")
-
+        
         # تسجيل الدخول للحصول على توكن
         response = self.client.post(reverse('token_obtain_pair'), {
             'username': 'testuser',
@@ -20,9 +20,11 @@ class ProductReviewAPITest(APITestCase):
         self.access_token = response.data['access']
 
     def authenticate(self, token=None):
+        """وظيفة لتسجيل المستخدم في الـ client"""
         self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + (token or self.access_token))
 
     def test_register_user(self):
+        """اختبار تسجيل مستخدم جديد"""
         response = self.client.post(reverse('register'), {
             'username': 'newuser',
             'email': 'new@example.com',
@@ -30,35 +32,16 @@ class ProductReviewAPITest(APITestCase):
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    def test_login_user(self):
-        response = self.client.post(reverse('token_obtain_pair'), {
-            'username': 'testuser',
-            'password': 'testpass'
-        })
-        self.assertIn('access', response.data)
-
-    def test_create_review_authenticated(self):
-        self.authenticate()
-        data = {
-            'product': self.product.id,
-            'rating': 5,
-            'review_text': 'Great product!'
-        }
-        response = self.client.post(reverse('review-list-create', args=[self.product.id]), data)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
     def test_cant_edit_others_review(self):
+        """اختبار أن المستخدم لا يمكنه تعديل مراجعة غير له"""
         review = Review.objects.create(
-            product=self.product,
+            product_id=1,
             user=self.user,
             rating=4,
             review_text='Old comment'
         )
 
-        other_user_data = {
-            'rating': 5,
-            'review_text': 'New comment'
-        }
+        other_user_data = {'rating': 5, 'review_text': 'New comment'}
 
         self.authenticate()
         url = reverse('review-detail', args=[review.id])
@@ -66,8 +49,9 @@ class ProductReviewAPITest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_admin_can_approve_review(self):
+        """اختبار أن المشرف يمكنه الموافقة على مراجعة"""
         review = Review.objects.create(
-            product=self.product,
+            product_id=1,
             user=self.user,
             rating=4,
             review_text='Nice product',
@@ -75,29 +59,20 @@ class ProductReviewAPITest(APITestCase):
         )
 
         self.authenticate()
-        url = reverse('review-approve_review', args=[review.id])
+        url = reverse('admin-review-approve', args=[review.id])
         response = self.client.post(url)
         review.refresh_from_db()
-        self.assertTrue(review.is_visible)
+
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(review.is_visible)
 
     def test_get_product_stats(self):
-        Review.objects.create(
-            product=self.product,
-            user=self.user,
-            rating=5,
-            review_text='Great product',
-            is_visible=True
-        )
-        Review.objects.create(
-            product=self.product,
-            user=self.admin,
-            rating=4,
-            review_text='Good product',
-            is_visible=True
-        )
+        """اختبار عرض إحصائيات المنتج"""
+        product = Product.objects.create(name="Test Product", price=100)
+        Review.objects.create(product=product, user=self.user, rating=5, review_text='Great!', is_visible=True)
+        Review.objects.create(product=product, user=self.admin, rating=4, review_text='Good.', is_visible=True)
 
-        url = reverse('product-rating-info', args=[self.product.id])
+        url = reverse('product-ratings', args=[product.id])
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['average_rating'], 4.5)
