@@ -1,24 +1,37 @@
+# permissions.py
+
 from rest_framework import permissions
 
 class IsOwnerOrReadOnly(permissions.BasePermission):
     """
-    يسمح فقط لصاحب المراجعة بالتعديل أو الحذف.
+    يسمح فقط لمُنشئ المراجعة (أو المنتج في حال استخدم مع Product) بالتعديل أو الحذف.
     """
 
     def has_object_permission(self, request, view, obj):
-        # السماح للقراءة دائماً
         if request.method in permissions.SAFE_METHODS:
             return True
 
-        # السماح بالتعديل والحذف فقط لصاحب المراجعة
-        return obj.user == request.user
+        # التحقق من أن المستخدم مسجل
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        # تحديد إذا كان المستخدم هو صاحب المراجعة أو المنتج
+        if hasattr(obj, 'user'):
+            return obj.user == request.user
+        elif hasattr(obj, 'product') and hasattr(obj.product, 'user'):
+            return obj.product.user == request.user
+
+        return False
 
 
-class IsAdminForApproval(permissions.BasePermission):
+
+class IsProductOwner(permissions.BasePermission):
     """
-    يسمح فقط للمشرف بتعديل حالة is_visible.
+    يسمح فقط لمُنشئ المنتج بتغيير حالة المراجعة (مثل الموافقة)
     """
 
-    def has_permission(self, request, view):
-        # المشرف فقط له الصلاحية
-        return request.user and request.user.is_staff
+    def has_object_permission(self, request, view, obj):
+        # obj هنا هو المراجعة Review
+        return obj.product.user == request.user
+    
+    
