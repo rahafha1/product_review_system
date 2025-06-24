@@ -49,16 +49,4 @@ A REST API for managing product reviews and ratings, allowing users to create re
 
 ---
 
-### **5. ملف Postman:**
 
-إنشاء ملف Postman يتضمن:
-1. تسجيل المستخدم.
-2. تسجيل الدخول والحصول على توكن.
-3. إنشاء مراجعة.
-4. الموافقة على مراجعة من قبل المشرف.
-5. عرض المراجعات وتصفيتها.
-
----
-
-### **6. عمل Pull Request:**
-بعد كتابة README ورفع المشروع على GitHub، افتحي Pull Request، وتحققي من التعديلات قبل الدمج مع الفرع الأساسي.
