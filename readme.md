@@ -62,3 +62,6 @@ A REST API for managing product reviews and ratings, allowing users to create re
 
 ### **6. عمل Pull Request:**
 بعد كتابة README ورفع المشروع على GitHub، افتحي Pull Request، وتحققي من التعديلات قبل الدمج مع الفرع الأساسي.
+postman
+
+https://documenter.getpostman.com/view/41721476/2sB2xBEAat
