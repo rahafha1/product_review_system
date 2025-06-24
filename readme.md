@@ -37,7 +37,7 @@ A REST API for managing product reviews and ratings, allowing users to create re
 ## 🛠️ Installation
 1. Clone the repository:
    ```bash
-   git clone <repository_url>
+   git clone <https://github.com/rahafha1/product_review_system>
 | Endpoint                              | Method | Description                     |
 | ------------------------------------- | ------ | ------------------------------- |
 | `/register/`                          | POST   | User registration               |
