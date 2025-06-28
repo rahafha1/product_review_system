@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import ProductViewSet, RegisterView, LogoutView, ReviewListCreateView, ReviewDetailView,ApproveReviewView , ProductRatingInfoView ,ReviewInteractionViewSet , ProductTopReviewView
+from .views import ProductViewSet, RegisterView, LogoutView, ReviewListCreateView, ReviewDetailView,ApproveReviewView , ProductRatingInfoView ,ReviewInteractionViewSet , ProductTopReviewView, AdminReportView, AdminReviewActionView, AdminDashboardView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 router = DefaultRouter()
@@ -21,6 +21,11 @@ urlpatterns = [
     path('admin/reviews/<int:pk>/approve/', ApproveReviewView.as_view(), name='admin-review-approve'),
     path('products/<int:pk>/ratings/', ProductRatingInfoView.as_view(), name='product-ratings'),
     path('products/<int:pk>/top-review/', ProductTopReviewView.as_view(), name='product-top-review'),
+
+    # Admin Insights & Reports URLs
+    path('admin/reports/', AdminReportView.as_view(), name='admin-reports'),
+    path('admin/reviews/<int:review_id>/<str:action>/', AdminReviewActionView.as_view(), name='admin-review-action'),
+    path('admin/dashboard/', AdminDashboardView.as_view(), name='admin-dashboard'),
 
     path('', include(router.urls)),
 ]

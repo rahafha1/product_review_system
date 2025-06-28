@@ -4,7 +4,7 @@ from rest_framework.views import APIView
 from rest_framework.decorators import action
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.models import User
-from .models import Product, Review
+from .models import Product, Review, Notification, AdminReport
 from .serializers import ProductSerializer, ReviewSerializer, UserSerializer ,ReviewInteraction , ReviewInteractionSerializer
 from .permissions import IsOwnerOrReadOnly, IsProductOwner
 from django_filters.rest_framework import DjangoFilterBackend
@@ -251,9 +251,292 @@ class NotificationListView(APIView):
         return Response({"message": "Notifications placeholder"})
 
 
+# =============================
+# ✅ Admin Insights & Reports System
+# =============================
 class AdminReportView(APIView):
-    """For Partner 4: Will implement admin reporting"""
-    permission_classes = [permissions.IsAdminUser]
+    """Admin Insights System - Comprehensive reporting for product reviews"""
+    permission_classes = [IsAuthenticated, IsProductOwner]
+
     def get(self, request, *args, **kwargs):
-        # TODO: Admin reporting (unapproved reviews, low ratings, offensive words)
-        return Response({"message": "Admin Reports placeholder"})
+        """
+        Get comprehensive admin insights including:
+        - Unapproved reviews count
+        - Low-rated reviews (1-2 stars)
+        - Reviews with offensive content
+        - Detailed filtering options
+        """
+        try:
+            # Get user's products
+            user_products = Product.objects.filter(user=request.user)
+            product_ids = user_products.values_list('id', flat=True)
+            
+            # Get all reviews for user's products
+            all_reviews = Review.objects.filter(product_id__in=product_ids)
+            
+            # 1. Unapproved reviews (pending approval)
+            unapproved_reviews = all_reviews.filter(is_visible=False)
+            unapproved_count = unapproved_reviews.count()
+            
+            # 2. Low-rated reviews (1-2 stars)
+            low_rated_reviews = all_reviews.filter(rating__in=[1, 2])
+            low_rated_count = low_rated_reviews.count()
+            
+            # 3. Reviews with offensive content
+            offensive_reviews = []
+            for review in all_reviews:
+                if review.contains_bad_words():
+                    offensive_reviews.append(review)
+            offensive_count = len(offensive_reviews)
+            
+            # 4. Get filter parameters from request
+            filter_type = request.query_params.get('filter', 'all')
+            product_id = request.query_params.get('product_id')
+            rating_filter = request.query_params.get('rating')
+            date_from = request.query_params.get('date_from')
+            date_to = request.query_params.get('date_to')
+            
+            # Apply filters based on request
+            filtered_reviews = all_reviews
+            
+            if product_id:
+                filtered_reviews = filtered_reviews.filter(product_id=product_id)
+            
+            if rating_filter:
+                filtered_reviews = filtered_reviews.filter(rating=rating_filter)
+            
+            if date_from:
+                filtered_reviews = filtered_reviews.filter(created_at__gte=date_from)
+            
+            if date_to:
+                filtered_reviews = filtered_reviews.filter(created_at__lte=date_to)
+            
+            # Apply specific filter types
+            if filter_type == 'unapproved':
+                filtered_reviews = filtered_reviews.filter(is_visible=False)
+            elif filter_type == 'low_rated':
+                filtered_reviews = filtered_reviews.filter(rating__in=[1, 2])
+            elif filter_type == 'offensive':
+                offensive_review_ids = [r.id for r in all_reviews if r.contains_bad_words()]
+                filtered_reviews = filtered_reviews.filter(id__in=offensive_review_ids)
+            
+            # Prepare response data
+            response_data = {
+                'summary': {
+                    'total_reviews': all_reviews.count(),
+                    'unapproved_reviews': unapproved_count,
+                    'low_rated_reviews': low_rated_count,
+                    'offensive_reviews': offensive_count,
+                    'approved_reviews': all_reviews.filter(is_visible=True).count(),
+                },
+                'filtered_reviews': ReviewSerializer(filtered_reviews, many=True).data,
+                'filter_applied': filter_type,
+                'products': [
+                    {
+                        'id': product.id,
+                        'name': product.name,
+                        'review_count': product.reviews.count(),
+                        'avg_rating': self._calculate_avg_rating(product.reviews.filter(is_visible=True))
+                    }
+                    for product in user_products
+                ]
+            }
+            
+            return Response(response_data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response(
+                {'error': f'Error generating admin report: {str(e)}'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    def _calculate_avg_rating(self, reviews):
+        """Calculate average rating for a set of reviews"""
+        if not reviews.exists():
+            return 0
+        return round(sum(review.rating for review in reviews) / reviews.count(), 1)
+
+
+class AdminReviewActionView(APIView):
+    """Admin actions for managing reviews (approve, reject, flag)"""
+    permission_classes = [IsAuthenticated, IsProductOwner]
+
+    def post(self, request, review_id, action):
+        """
+        Perform admin actions on reviews:
+        - approve: Make review visible
+        - reject: Mark review as rejected
+        - flag: Flag review for offensive content
+        """
+        try:
+            review = Review.objects.get(id=review_id)
+            
+            # Check if user owns the product
+            if review.product.user != request.user:
+                return Response(
+                    {'error': 'You are not authorized to manage this review'}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
+            if action == 'approve':
+                review.is_visible = True
+                review.save()
+                
+                # Create notification for user
+                Notification.objects.create(
+                    user=review.user,
+                    message=f"Your review for '{review.product.name}' has been approved and is now visible."
+                )
+                
+                return Response({
+                    'message': 'Review approved successfully',
+                    'review_id': review.id
+                }, status=status.HTTP_200_OK)
+                
+            elif action == 'reject':
+                review.is_visible = False
+                review.save()
+                
+                # Create admin report
+                AdminReport.objects.create(
+                    review=review,
+                    status='rejected'
+                )
+                
+                # Create notification for user
+                Notification.objects.create(
+                    user=review.user,
+                    message=f"Your review for '{review.product.name}' has been rejected."
+                )
+                
+                return Response({
+                    'message': 'Review rejected successfully',
+                    'review_id': review.id
+                }, status=status.HTTP_200_OK)
+                
+            elif action == 'flag':
+                # Create admin report for offensive content
+                AdminReport.objects.create(
+                    review=review,
+                    status='pending'
+                )
+                
+                return Response({
+                    'message': 'Review flagged for review',
+                    'review_id': review.id
+                }, status=status.HTTP_200_OK)
+                
+            else:
+                return Response(
+                    {'error': 'Invalid action. Use: approve, reject, or flag'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+                
+        except Review.DoesNotExist:
+            return Response(
+                {'error': 'Review not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {'error': f'Error performing action: {str(e)}'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class AdminDashboardView(APIView):
+    """Admin dashboard with comprehensive insights and charts data"""
+    permission_classes = [IsAuthenticated, IsProductOwner]
+
+    def get(self, request):
+        """
+        Get comprehensive dashboard data including:
+        - Review statistics over time
+        - Rating distribution
+        - Product performance metrics
+        - Recent activity
+        """
+        try:
+            # Get user's products
+            user_products = Product.objects.filter(user=request.user)
+            product_ids = user_products.values_list('id', flat=True)
+            
+            # Get all reviews for user's products
+            all_reviews = Review.objects.filter(product_id__in=product_ids)
+            
+            # Calculate rating distribution
+            rating_distribution = {}
+            for rating in range(1, 6):
+                count = all_reviews.filter(rating=rating).count()
+                rating_distribution[f'{rating}_stars'] = count
+            
+            # Get reviews by month (last 6 months)
+            from datetime import datetime, timedelta
+            from django.utils import timezone
+            
+            monthly_stats = []
+            for i in range(6):
+                date = timezone.now() - timedelta(days=30*i)
+                month_start = date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(seconds=1)
+                
+                month_reviews = all_reviews.filter(created_at__range=[month_start, month_end])
+                monthly_stats.append({
+                    'month': month_start.strftime('%Y-%m'),
+                    'total_reviews': month_reviews.count(),
+                    'approved_reviews': month_reviews.filter(is_visible=True).count(),
+                    'avg_rating': self._calculate_avg_rating(month_reviews.filter(is_visible=True))
+                })
+            
+            # Get top performing products
+            top_products = []
+            for product in user_products:
+                product_reviews = product.reviews.filter(is_visible=True)
+                if product_reviews.exists():
+                    avg_rating = self._calculate_avg_rating(product_reviews)
+                    top_products.append({
+                        'id': product.id,
+                        'name': product.name,
+                        'avg_rating': avg_rating,
+                        'review_count': product_reviews.count(),
+                        'recent_reviews': product_reviews.order_by('-created_at')[:5].count()
+                    })
+            
+            # Sort by average rating
+            top_products.sort(key=lambda x: x['avg_rating'], reverse=True)
+            
+            # Get recent activity
+            recent_reviews = all_reviews.order_by('-created_at')[:10]
+            
+            response_data = {
+                'overview': {
+                    'total_products': user_products.count(),
+                    'total_reviews': all_reviews.count(),
+                    'approved_reviews': all_reviews.filter(is_visible=True).count(),
+                    'pending_reviews': all_reviews.filter(is_visible=False).count(),
+                    'overall_avg_rating': self._calculate_avg_rating(all_reviews.filter(is_visible=True))
+                },
+                'rating_distribution': rating_distribution,
+                'monthly_stats': monthly_stats,
+                'top_products': top_products[:5],  # Top 5 products
+                'recent_activity': ReviewSerializer(recent_reviews, many=True).data,
+                'alerts': {
+                    'unapproved_count': all_reviews.filter(is_visible=False).count(),
+                    'low_rated_count': all_reviews.filter(rating__in=[1, 2]).count(),
+                    'offensive_count': len([r for r in all_reviews if r.contains_bad_words()])
+                }
+            }
+            
+            return Response(response_data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response(
+                {'error': f'Error generating dashboard: {str(e)}'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    def _calculate_avg_rating(self, reviews):
+        """Calculate average rating for a set of reviews"""
+        if not reviews.exists():
+            return 0
+        return round(sum(review.rating for review in reviews) / reviews.count(), 1)
