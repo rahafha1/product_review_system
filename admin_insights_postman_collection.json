@@ -1,0 +1,348 @@
+{
+  "info": {
+    "name": "Admin Insights System - Task 8 Number 4",
+    "description": "Comprehensive admin reporting and insights system for product reviews",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "your_jwt_token_here",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Admin Reports",
+      "item": [
+        {
+          "name": "Get All Admin Reports",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/reports/",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "reports", ""]
+            },
+            "description": "Get comprehensive admin reports including unapproved reviews, low-rated reviews, and offensive content"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Unapproved Reviews",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/reports/?filter=unapproved",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "reports", ""],
+              "query": [
+                {
+                  "key": "filter",
+                  "value": "unapproved"
+                }
+              ]
+            },
+            "description": "Filter reports to show only unapproved reviews"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Low Rated Reviews",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/reports/?filter=low_rated",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "reports", ""],
+              "query": [
+                {
+                  "key": "filter",
+                  "value": "low_rated"
+                }
+              ]
+            },
+            "description": "Filter reports to show only low-rated reviews (1-2 stars)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Offensive Reviews",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/reports/?filter=offensive",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "reports", ""],
+              "query": [
+                {
+                  "key": "filter",
+                  "value": "offensive"
+                }
+              ]
+            },
+            "description": "Filter reports to show only reviews with offensive content"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Reports by Product",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/reports/?product_id=1",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "reports", ""],
+              "query": [
+                {
+                  "key": "product_id",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Filter reports by specific product ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Reports by Date Range",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/reports/?date_from=2024-01-01&date_to=2024-12-31",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "reports", ""],
+              "query": [
+                {
+                  "key": "date_from",
+                  "value": "2024-01-01"
+                },
+                {
+                  "key": "date_to",
+                  "value": "2024-12-31"
+                }
+              ]
+            },
+            "description": "Filter reports by date range"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Review Management Actions",
+      "item": [
+        {
+          "name": "Approve Review",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/reviews/1/approve/",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "reviews", "1", "approve", ""]
+            },
+            "description": "Approve a review and make it visible"
+          },
+          "response": []
+        },
+        {
+          "name": "Reject Review",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/reviews/1/reject/",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "reviews", "1", "reject", ""]
+            },
+            "description": "Reject a review and hide it"
+          },
+          "response": []
+        },
+        {
+          "name": "Flag Review",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/reviews/1/flag/",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "reviews", "1", "flag", ""]
+            },
+            "description": "Flag a review for offensive content review"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Admin Dashboard",
+      "item": [
+        {
+          "name": "Get Admin Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/dashboard/",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "dashboard", ""]
+            },
+            "description": "Get comprehensive admin dashboard with insights, statistics, and alerts"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login to Get Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin_user\",\n  \"password\": \"testpass123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/token/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "token", ""]
+            },
+            "description": "Login to get JWT access token for admin operations"
+          },
+          "response": []
+        },
+        {
+          "name": "Register New User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"new_admin\",\n  \"email\": \"newadmin@test.com\",\n  \"password\": \"testpass123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/register/",
+              "host": ["{{base_url}}"],
+              "path": ["register", ""]
+            },
+            "description": "Register a new admin user"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+} 
