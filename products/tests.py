@@ -1,7 +1,4 @@
-from django.urls import reverse
-from rest_framework.test import APITestCase
-from rest_framework import status
-from django.contrib.auth.models import User
+
 from .models import Product, Review, ReviewInteraction, Notification, AdminReport
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.test import TestCase
@@ -40,6 +37,7 @@ class ProductReviewAPITest(APITestCase):
             'password': 'newpass123'
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Review.objects.count(), 1)
 
     def test_cant_edit_others_review(self):
         """ ❌ اختبار عدم إمكانية تعديل مراجعة لآخر """
@@ -72,9 +70,8 @@ class ProductReviewAPITest(APITestCase):
 
         url = reverse('admin-review-approve', args=[review.id])
         response = self.client.post(url)
-        review.refresh_from_db()
-
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        review.refresh_from_db()
         self.assertTrue(review.is_visible)
 
     def test_get_product_stats(self):
@@ -550,3 +547,4 @@ class AdminInsightsIntegrationTest(TestCase):
             status='rejected'
         )
         self.assertEqual(admin_report.status, 'rejected')
+

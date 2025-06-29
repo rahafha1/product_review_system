@@ -153,34 +153,47 @@ class ReviewListCreateView(generics.ListCreateAPIView):
         review.delete()
         return Response({"message": "Review deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
 
-
-# =============================
-# 📄 Review Detail View
+#============================
+#  Review Detail View
 # =============================
 class ReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Review.objects.all()
     serializer_class = ReviewSerializer
     permission_classes = [IsOwnerOrReadOnly]
-
-
+    lookup_url_kwarg = 'review_id'
 # =============================
 # ✅ Approve Review (Admin only)
 # =============================
+
 class ApproveReviewView(APIView):
     permission_classes = [IsAuthenticated, IsProductOwner]
 
-    def post(self, request, pk=None):
+    def post(self, request, product_id, review_id):
         try:
-            review = Review.objects.get(pk=pk)
+            # التأكد من أن المراجعة موجودة ومرتبطة بالمنتج المطلوب
+            review = Review.objects.get(id=review_id, product_id=product_id)
         except Review.DoesNotExist:
-            return Response({'error': 'Review not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {'error': 'Review not found for this product.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
         if review.product.user != request.user:
-            return Response({'error': 'You are not the owner of this product.'}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {'error': 'You are not the owner of this product.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
         review.is_visible = True
         review.save()
-        return Response({'status': 'Review approved!'})
+
+
+        return Response({
+            'status': 'Review approved!',
+            'product_id': product_id,
+            'review_id': review_id,
+            'product_name': review.product.name
+        })
 
 #  New Placeholder Endpoints for Task 8
 
@@ -540,3 +553,4 @@ class AdminDashboardView(APIView):
         if not reviews.exists():
             return 0
         return round(sum(review.rating for review in reviews) / reviews.count(), 1)
+
