@@ -55,13 +55,11 @@ class ReviewInteraction(models.Model):
 class Notification(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="notifications")
     message = models.TextField()
+    related_review = models.ForeignKey('Review', on_delete=models.CASCADE, null=True, blank=True, related_name="notifications")  # حقل اختياري
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"Notification for {self.user.username}"
-
-
+    
+    
 # ✅ الجدول الجديد (تقارير المشرف): مراجعات مرفوضة، تحتوي كلمات محظورة، تقييم منخفض
 class AdminReport(models.Model):
     review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name="reports")
