@@ -197,12 +197,12 @@ class ApproveReviewView(APIView):
 
 #  New Placeholder Endpoints for Task 8
 
-class AnalyticsView(APIView):
-    """For Partner 1: Will implement analytics for reviews"""
-    permission_classes = [permissions.IsAuthenticated]
-    def get(self, request, *args, **kwargs):
-        # TODO: Implement analytics
-        return Response({"message": "Analytics placeholder"})
+# class AnalyticsView(APIView):
+#     """For Partner 1: Will implement analytics for reviews"""
+#     permission_classes = [permissions.IsAuthenticated]
+#     def get(self, request, *args, **kwargs):
+#         # TODO: Implement analytics
+#         return Response({"message": "Analytics placeholder"})
 
 
 ### by rahaf ###
@@ -211,14 +211,21 @@ class ReviewInteractionViewSet(viewsets.ModelViewSet):
     serializer_class = ReviewInteractionSerializer
     permission_classes = [IsAuthenticated]
 
-    def get_queryset(self):
+    def get_queryset(self.queryset):
         # يسمح للمستخدم فقط برؤية تفاعلاته أو تفاعلات مراجعة معينة
         user = self.request.user
         return ReviewInteraction.objects.filter(user=user)
 
     def perform_create(self, serializer):
         # ربط التفاعل بالمستخدم الحالي
-        serializer.save(user=self.request.user)
+        interaction = serializer.save(user=self.request.user)
+
+        # إرسال إشعار للمستخدم الذي كتب المراجعة
+        if interaction.review.user != self.request.user:  # لا ترسل إشعاراً إذا كان التفاعل من نفس المستخدم
+            Notification.objects.create(
+                user=interaction.review.user,
+                message=f"تلقت مراجعتك تفاعلاً جديداً على منتج {interaction.review.product.name}.",
+            )
 
     @action(detail=False, methods=['get'], url_path='review/(?P<review_id>[^/.]+)/stats')
     def review_stats(self, request, review_id=None):
@@ -230,6 +237,9 @@ class ReviewInteractionViewSet(viewsets.ModelViewSet):
             "likes_count": likes,
             "helpful_count": helpfuls,
         }, status=status.HTTP_200_OK)
+
+
+
 
 class ProductTopReviewView(APIView):
     def get(self, request, pk):
@@ -255,14 +265,31 @@ class ProductTopReviewView(APIView):
         serializer = ReviewSerializer(top_review)
         return Response(serializer.data)
 
-        #### rrr ###
+###################
+#### Notification ####
+###################
 class NotificationListView(APIView):
-    """For Partner 3: Will implement user notifications"""
-    permission_classes = [permissions.IsAuthenticated]
-    def get(self, request, *args, **kwargs):
-        # TODO: List notifications
-        return Response({"message": "Notifications placeholder"})
+    permission_classes = [IsAuthenticated]
 
+    def get(self, request):
+        notifications = Notification.objects.filter(user=request.user, is_read=False)
+        notification_data = [
+            {
+                "id": n.id,
+                "message": n.message,
+                "related_review": n.related_review.id if n.related_review else None,
+                "created_at": n.created_at,
+            }
+            for n in notifications
+        ]
+
+        return Response(notification_data)
+
+    def post(self, request):
+        # تحديث حالة الإشعارات إلى مقروءة
+        Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
+        return Response({"status": "All notifications marked as read."})
+    
 
 # =============================
 # ✅ Admin Insights & Reports System
@@ -553,4 +580,9 @@ class AdminDashboardView(APIView):
         if not reviews.exists():
             return 0
         return round(sum(review.rating for review in reviews) / reviews.count(), 1)
+
+
+
+
+
 
