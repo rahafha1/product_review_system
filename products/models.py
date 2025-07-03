@@ -29,6 +29,8 @@ class Review(models.Model):
     review_text = models.TextField()
     is_visible = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    views_count = models.PositiveIntegerField(default=0)  # Number of times this review has been viewed
+
 
     def contains_bad_words(self):
         """Check if review contains any bad words."""

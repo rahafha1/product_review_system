@@ -49,9 +49,11 @@ class ReviewSerializer(serializers.ModelSerializer):
     user = serializers.StringRelatedField(read_only=True)
     likes_count = serializers.SerializerMethodField()
     helpful_count = serializers.SerializerMethodField()
+    views_count = serializers.IntegerField(read_only=True)  # Show view count
+    
     class Meta:
         model = Review
-        fields = ["id", "user", "rating", "review_text", "is_visible", "created_at","likes_count","helpful_count"]
+        fields = ["id", "user", "rating", "review_text", "is_visible", "created_at","likes_count","helpful_count" , "views_count"]
         read_only_fields = ["id", "user", "created_at", "is_visible"]
 
     def validate_rating(self, value):

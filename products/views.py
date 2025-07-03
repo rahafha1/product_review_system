@@ -178,6 +178,21 @@ class ReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ReviewSerializer
     permission_classes = [IsOwnerOrReadOnly]
     lookup_url_kwarg = 'review_id'
+
+        ###views count ###
+    def retrieve(self, request, *args, **kwargs):
+        # Retrieve the review as usual
+        instance = self.get_object()
+    
+        # Increment the views count
+        instance.views_count += 1
+        instance.save(update_fields=['views_count'])
+
+        # Return the response
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+            ######
+            
 # =============================
 # ✅ Approve Review (Admin only)
 # =============================
@@ -228,7 +243,7 @@ class ReviewInteractionViewSet(viewsets.ModelViewSet):
     serializer_class = ReviewInteractionSerializer
     permission_classes = [IsAuthenticated]
 
-    def get_queryset(self.queryset):
+    def get_queryset(self): 
         # يسمح للمستخدم فقط برؤية تفاعلاته أو تفاعلات مراجعة معينة
         user = self.request.user
         return ReviewInteraction.objects.filter(user=user)
