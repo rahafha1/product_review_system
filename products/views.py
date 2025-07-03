@@ -126,6 +126,23 @@ class ReviewListCreateView(generics.ListCreateAPIView):
         product = Product.objects.get(id=product_id)
         serializer.save(user=self.request.user, product=product)
 
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            self.perform_create(serializer)
+            headers = self.get_success_headers(serializer.data)
+            return Response({
+                'success': True,
+                'message': 'Review created successfully.',
+                'review': serializer.data
+            }, status=status.HTTP_201_CREATED, headers=headers)
+        else:
+            return Response({
+                'success': False,
+                'message': 'Failed to create review.',
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+
     def patch(self, request, *args, **kwargs):
         product_id = kwargs.get('product_id')
         review_id = kwargs.get('review_id')
