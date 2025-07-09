@@ -49,26 +49,43 @@ class ReviewSerializer(serializers.ModelSerializer):
     user = serializers.StringRelatedField(read_only=True)
     likes_count = serializers.SerializerMethodField()
     helpful_count = serializers.SerializerMethodField()
-    views_count = serializers.IntegerField(read_only=True)  # Show view count
-    
+    views_count = serializers.IntegerField(read_only=True)
+
+    # إضافات جديدة:
+    user_liked = serializers.SerializerMethodField()
+    reported = serializers.SerializerMethodField()
+
     class Meta:
         model = Review
-        fields = ["id", "user", "rating", "review_text", "is_visible", "created_at","likes_count","helpful_count" , "views_count"]
+        fields = [
+            "id", "user", "rating", "review_text", "is_visible",
+            "created_at", "likes_count", "helpful_count", "views_count",
+            "user_liked", "reported"
+        ]
         read_only_fields = ["id", "user", "created_at", "is_visible"]
 
     def validate_rating(self, value):
-        """القيم من 1 إلى 5"""
         if value < 1 or value > 5:
             raise serializers.ValidationError("Rating must be between 1 and 5.")
         return value
-    
+
     def get_likes_count(self, obj):
         return obj.interactions.filter(liked=True).count()
 
     def get_helpful_count(self, obj):
         return obj.interactions.filter(is_helpful=True).count()
 
+    def get_user_liked(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.interactions.filter(user=request.user, liked=True).exists()
+        return False
 
+    def get_reported(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return AdminReport.objects.filter(review=obj, user=request.user).exists()
+        return False
 # ✅ ReviewInteraction Serializer by rahaf
 class ReviewInteractionSerializer(serializers.ModelSerializer):
     likes_count = serializers.SerializerMethodField()

@@ -105,20 +105,44 @@ class ProductRatingInfoView(APIView):
 # =============================
 #  Review List/Create View
 # =============================
+from django.db.models import F
+
 class ReviewListCreateView(generics.ListCreateAPIView):
     serializer_class = ReviewSerializer
     permission_classes = [permissions.IsAuthenticated]
+    
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['rating']
     search_fields = ['review_text']
-    ordering_fields = ['created_at']
+    ordering_fields = ['created_at', 'rating', 'likes_count', 'helpful_count']
 
     def get_queryset(self):
         product_id = self.kwargs['product_id']
         queryset = Review.objects.filter(product_id=product_id, is_visible=True)
+
+        # تصفية حسب التقييم
         rating = self.request.query_params.get('rating')
         if rating:
-            queryset = queryset.filter(rating=rating)
+            try:
+                rating = int(rating)
+                if 1 <= rating <= 5:
+                    queryset = queryset.filter(rating=rating)
+            except ValueError:
+                pass
+
+        # ترتيب حسب نوع معين
+        order_by = self.request.query_params.get('ordering')
+        if order_by:
+            if order_by == 'most_interactions':
+                queryset = queryset.annotate(
+                    total_interactions=F('likes_count') + F('helpful_count')
+                ).order_by('-total_interactions')
+            else:
+                try:
+                    queryset = queryset.order_by(order_by)
+                except Exception:
+                    pass  # تجاهل القيم غير الصحيحة
+
         return queryset
 
     def perform_create(self, serializer):
@@ -142,6 +166,42 @@ class ReviewListCreateView(generics.ListCreateAPIView):
                 'message': 'Failed to create review.',
                 'errors': serializer.errors
             }, status=status.HTTP_400_BAD_REQUEST)
+#============================
+#  Review Detail View
+# =============================
+class ReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Review.objects.all()
+    serializer_class = ReviewSerializer
+    permission_classes = [IsOwnerOrReadOnly]
+    lookup_url_kwarg = 'review_id'
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+
+        # زيادة عدد المشاهدات
+        instance.views_count += 1
+        instance.save(update_fields=['views_count'])
+
+        # تحديد إذا كان المستخدم تفاعل أو أبلغ عن المراجعة
+        user = request.user
+        user_liked = False
+        reported = False
+
+        if user.is_authenticated:
+            user_liked = instance.interactions.filter(user=user, liked=True).exists()
+            reported = AdminReport.objects.filter(review=instance, user=user).exists()
+
+        
+        serializer = self.get_serializer(instance)
+        data = serializer.data.copy()  # عمل نسخة لتجنب مشاكل القراءة فقط
+
+        data.update({
+            'views_count': instance.views_count,
+            'user_liked': user_liked,
+            'reported': reported
+        })
+
+        return Response(data)
 
     def patch(self, request, *args, **kwargs):
         product_id = kwargs.get('product_id')
@@ -169,30 +229,6 @@ class ReviewListCreateView(generics.ListCreateAPIView):
             raise PermissionDenied("You do not have permission to delete this review.")
         review.delete()
         return Response({"message": "Review deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
-
-#============================
-#  Review Detail View
-# =============================
-class ReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Review.objects.all()
-    serializer_class = ReviewSerializer
-    permission_classes = [IsOwnerOrReadOnly]
-    lookup_url_kwarg = 'review_id'
-
-        ###views count ###
-    def retrieve(self, request, *args, **kwargs):
-        # Retrieve the review as usual
-        instance = self.get_object()
-    
-        # Increment the views count
-        instance.views_count += 1
-        instance.save(update_fields=['views_count'])
-
-        # Return the response
-        serializer = self.get_serializer(instance)
-        return Response(serializer.data)
-            ######
-            
 # =============================
 # ✅ Approve Review (Admin only)
 # =============================
@@ -613,6 +649,193 @@ class AdminDashboardView(APIView):
             return 0
         return round(sum(review.rating for review in reviews) / reviews.count(), 1)
 
+
+   
+#########################
+#by kinana analytics
+########################
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import permissions, status
+from products.analytics import (
+    get_product_rating_trend,
+    get_most_common_words_in_reviews,
+    get_top_reviewers,
+    search_reviews_by_keyword,
+    export_reviews_to_csv,
+    get_top_rated_products,
+    get_low_rating_reviews,
+    get_pending_reviews_count,
+    filter_inappropriate_reviews
+)
+
+##جميع المنتجات
+class AllProductsAnalyticsView(APIView):
+    def get(self, request):
+        all_products_data = [
+            {
+                "product_id": product.id,
+                "name": product.name,
+                "rating_trend": get_product_rating_trend(product.id),
+                "most_common_words": get_most_common_words_in_reviews(product.id),
+                "low_rating_reviews": get_low_rating_reviews(product.id),
+                
+            }
+            for product in Product.objects.all()
+        ]
+        return Response({"products_analytics": all_products_data})
+   #تحليل منتج
+class ProductAnalyticsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, product_id=None):
+        rating_data = get_product_rating_trend(product_id)
+        common_words = get_most_common_words_in_reviews(product_id)
+        low_rating_reviews = get_low_rating_reviews(product_id)
+        inappropriate_reviews = filter_inappropriate_reviews(
+            product_id, banned_words=['ugly', 'offensive']
+        )
+        pending_reviews_count = get_pending_reviews_count()
+
+        return Response({
+            "product_id": product_id,
+            "rating_trend": rating_data,
+            "most_common_words": common_words,
+            "low_rating_reviews": low_rating_reviews,
+            "inappropriate_reviews": inappropriate_reviews,
+            "pending_reviews_count": pending_reviews_count
+        })
+
+# تحليل جميع المنتجات الأعلى تقييمًا
+class TopRatedProductsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        days = int(request.GET.get('days', 30))  # عدد الأيام لتحليل التقييمات (افتراضي 30)
+        top_products = get_top_rated_products(days=days)
+        return Response({"top_rated_products": top_products})
+
+# تحليل أكثر المستخدمين كتابةً للمراجعات
+class TopReviewersView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        limit = int(request.GET.get('limit', 5))  
+        top_reviewers = get_top_reviewers(limit=limit)
+        return Response({"top_reviewers": top_reviewers})
+
+# البحث في المراجعات باستخدام كلمات مفتاحية
+class KeywordSearchView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, product_id=None):
+        keyword = request.GET.get('keyword', '').strip()
+        if not keyword:
+            return Response(
+                {"error": "الرجاء إدخال كلمة مفتاحية باستخدام المعامل 'keyword'."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        reviews = search_reviews_by_keyword(product_id, keyword)
+        results = [
+            {"id": r.id, "user": r.user.username, "rating": r.rating, "review_text": r.review_text}
+            for r in reviews
+        ]
+        return Response({
+            "product_id": product_id,
+            "keyword": keyword,
+            "results_count": len(results),
+            "reviews": results
+        })
+
+# تصدير المراجعات إلى CSV
+from django.http import HttpResponse
+import csv
+class ExportAllReviewsAnalyticsToCSV(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # إعداد استجابة CSV
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="all_reviews_analytics.csv"'
+
+       
+        writer = csv.writer(response, delimiter=',')  
+        
+        writer.writerow(['Product ID', 'Product Name', 'Average Rating', 'Total Reviews'])
+
+       
+        products = Product.objects.all()
+        for product in products:
+            reviews = product.reviews.all()
+            total_reviews = reviews.count()
+            avg_rating = (
+                round(sum(review.rating for review in reviews) / total_reviews, 1)
+                if total_reviews > 0
+                else 0
+            )
+            writer.writerow([product.id  , product.name , avg_rating  , total_reviews])
+
+        return response
+  
+######excel
+from openpyxl import Workbook
+
+from products.analytics import (
+    get_product_rating_trend,
+    get_most_common_words_in_reviews,
+    get_low_rating_reviews,
+    get_pending_reviews_count,
+)
+
+class ExportReviewsToExcel(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # إنشاء ملف Excel جديد
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Products Analytics"
+
+        # كتابة رؤوس الأعمدة
+        ws.append([
+            'Product ID', 'Product Name', 'Average Rating', 'Total Reviews',
+            'Most Common Words', 'Low Rating Reviews', 'Pending Reviews Count'
+        ])
+
+        # جلب المنتجات وتحليل كل منتج
+        products = Product.objects.all()
+        for product in products:
+            # التحليلات الخاصة بكل منتج
+            rating_trend = get_product_rating_trend(product.id)
+            most_common_words = get_most_common_words_in_reviews(product.id, limit=5)
+            low_rating_reviews = get_low_rating_reviews(product.id, limit=5)
+            pending_reviews_count = get_pending_reviews_count()
+
+            
+            most_common_words_str = ', '.join([f"{word}({count})" for word, count in most_common_words])
+            low_rating_reviews_str = '; '.join([f"{review['review_text']}({review['rating']})" for review in low_rating_reviews])
+
+           
+            ws.append([
+                product.id,
+                product.name,
+                rating_trend['average_rating'],
+                rating_trend['total_reviews'],
+                most_common_words_str,
+                low_rating_reviews_str,
+                pending_reviews_count['pending_reviews'],
+            ])
+
+        
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+        response['Content-Disposition'] = 'attachment; filename=products_analytics.xlsx'
+
+       
+        wb.save(response)
+        return response
 
 
 
