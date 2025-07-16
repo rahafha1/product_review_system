@@ -60,10 +60,23 @@ class Notification(models.Model):
     related_review = models.ForeignKey('Review', on_delete=models.CASCADE, null=True, blank=True, related_name="notifications")  # حقل اختياري
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+
+#   (الردود على المراجعات): يدعم تعليقات المستخدمين على المراجعات
+class ReviewComment(models.Model):
+    review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name="comments")  # المرتبط بالمراجعة
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="review_comments")  # من كتب الرد
+    comment_text = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Comment by {self.user.username} on review {self.review.id}"
+
     
     
-# ✅ الجدول الجديد (تقارير المشرف): مراجعات مرفوضة، تحتوي كلمات محظورة، تقييم منخفض
+#  الجدول الجديد (تقارير المشرف): مراجعات مرفوضة، تحتوي كلمات محظورة، تقييم منخفض
 class AdminReport(models.Model):
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE,) # من قدم البلاغ
     review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name="reports")
     status = models.CharField(max_length=20, choices=[
         ("pending", "Pending"),

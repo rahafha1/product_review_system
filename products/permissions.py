@@ -1,7 +1,5 @@
-# permissions.py
 
 from rest_framework import permissions
-
 class IsOwnerOrReadOnly(permissions.BasePermission):
     """
     يسمح فقط لمُنشئ المراجعة (أو المنتج في حال استخدم مع Product) بالتعديل أو الحذف.
@@ -24,14 +22,29 @@ class IsOwnerOrReadOnly(permissions.BasePermission):
         return False
 
 
+from rest_framework.permissions import BasePermission
+from products.models import Product, Review
 
-class IsProductOwner(permissions.BasePermission):
-    """
-    يسمح فقط لمُنشئ المنتج بتغيير حالة المراجعة (مثل الموافقة)
-    """
+class IsProductOwner(BasePermission):
+    def has_permission(self, request, view):
+        user = request.user
 
-    def has_object_permission(self, request, view, obj):
-        # obj هنا هو المراجعة Review
-        return obj.product.user == request.user
-    
-    
+        if not user.is_authenticated:
+            return False
+
+        # إذا في باراميتر اسمه review_id، نتحقق إنو المراجعة تعود لمنتج يملكه المستخدم
+        review_id = view.kwargs.get('review_id')
+        if review_id:
+            try:
+                review = Review.objects.get(id=review_id)
+                return review.product.user == user
+            except Review.DoesNotExist:
+                return False
+
+        # أو إذا طلبنا /admin/dashboard أو /admin/reports → نتحقق إذا عنده منتجات
+        if Product.objects.filter(user=user).exists():
+            return True
+
+        return False
+  
+

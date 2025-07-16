@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.auth.hashers import make_password
-from .models import Product, Review, ReviewInteraction, Notification, AdminReport
+from .models import Product, Review, ReviewInteraction, Notification, AdminReport , ReviewComment
+from rest_framework.exceptions import PermissionDenied
 
 
 
@@ -50,6 +51,7 @@ class ReviewSerializer(serializers.ModelSerializer):
     likes_count = serializers.SerializerMethodField()
     helpful_count = serializers.SerializerMethodField()
     views_count = serializers.IntegerField(read_only=True)
+    
 
     # إضافات جديدة:
     user_liked = serializers.SerializerMethodField()
@@ -107,7 +109,8 @@ class ReviewInteractionSerializer(serializers.ModelSerializer):
         review = data.get("review", None) or getattr(self.instance, "review", None)
 
         if review and review.user == user:
-            raise serializers.ValidationError("لا يمكنك التفاعل على مراجعتك.")
+            raise PermissionDenied("لا يمكنك التفاعل على مراجعتك.")
+
 
         # فقط إذا هو إنشاء (self.instance = None)
         if self.instance is None:
@@ -135,3 +138,11 @@ class AdminReportSerializer(serializers.ModelSerializer):
         model = AdminReport
         fields = ["id", "review", "status", "created_at"]
         read_only_fields = ["id", "review", "created_at"]
+
+class ReviewCommentSerializer(serializers.ModelSerializer):
+    user = serializers.StringRelatedField(read_only=True)  # عرض اسم المستخدم بدل ID
+
+    class Meta:
+        model = ReviewComment
+        fields = ['id', 'review', 'user', 'comment_text', 'created_at']
+        read_only_fields = ['id', 'user', 'created_at']
